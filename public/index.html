@@ -1,0 +1,260 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clínica | Gestión de citas</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: Arial, sans-serif;
+      background: #f3f6fa;
+      color: #253449;
+    }
+
+    main { max-width: 1000px; margin: auto; }
+
+    h1 { color: #245b82; }
+
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 18px 0;
+      box-shadow: 0 2px 10px #0000000b;
+    }
+
+    button {
+      border: 0;
+      border-radius: 7px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:disabled { opacity: .5; cursor: wait; }
+
+    .principal { background: #245b82; color: white; }
+    .hecha { background: #21834b; color: white; }
+    .anular { background: #c73c3c; color: white; }
+
+    #mensaje { white-space: pre-wrap; color: #526579; }
+
+    .cita {
+      background: white;
+      padding: 18px;
+      border-radius: 10px;
+      border-left: 5px solid #6595bd;
+      box-shadow: 0 2px 8px #152b4010;
+    }
+
+    #citas { display: grid; gap: 14px; }
+
+    .datos { line-height: 1.8; font-size: 14px; }
+
+    .estado {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 5px 10px;
+      border-radius: 15px;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .concertada { background: #e1efff; color: #215b99; }
+    .realizada { background: #dcf7e6; color: #17683a; }
+    .cancelada { background: #ffe3e3; color: #a32929; }
+
+    .acciones { display: flex; gap: 8px; margin-top: 14px; }
+
+    @media (max-width: 500px) {
+      body { padding: 14px; }
+      .acciones { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+
+<body>
+<main>
+  <h1>Gestión de citas</h1>
+  <p>Consulta las citas y actualiza su estado.</p>
+
+  <section class="panel">
+    <h2>Datos de prueba</h2>
+    <p>
+      El botón crea las diez citas solo si la colección está vacía.
+      No borra ni modifica las citas existentes.
+    </p>
+    <button id="cargar" class="principal">Cargar 10 citas de prueba</button>
+    <p id="mensaje">Conectando con Firebase...</p>
+  </section>
+
+  <section>
+    <h2>Citas registradas</h2>
+    <div id="citas"></div>
+  </section>
+</main>
+
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, doc, updateDoc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyATWK9zSGn0pe2hbzi2Yr-WeYY-Yk07Wxw",
+    authDomain: "clinica-citas-prueba-3be14.firebaseapp.com",
+    projectId: "clinica-citas-prueba-3be14",
+    storageBucket: "clinica-citas-prueba-3be14.firebasestorage.app",
+    messagingSenderId: "219861248212",
+    appId: "1:219861248212:web:f6bffecd1cd3418c00b341",
+    measurementId: "G-VPGX96MKXJ"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+
+
+  
+  const db = getFirestore(app);
+  const coleccion = collection(db, "citas");
+
+  const mensaje = document.getElementById("mensaje");
+  const contenedor = document.getElementById("citas");
+  const botonCargar = document.getElementById("cargar");
+
+  const datosPrueba = [
+    ["2026-10-22","09:00","Laura Martínez","Lucía Romero","revision"],
+    ["2026-10-22","10:30","Carlos Sánchez","Pablo Torres","tratamiento"],
+    ["2026-10-22","11:00","Marta López","Sofía Navarro","revision"],
+    ["2026-10-23","09:30","Javier Fernández","Daniel Ruiz","tratamiento"],
+    ["2026-10-23","12:00","Ana García","Elena Díaz","revision"],
+    ["2026-10-24","10:00","Laura Martínez","Adrián Moreno","tratamiento"],
+    ["2026-10-26","16:00","Carlos Sánchez","Claudia Ortega","revision"],
+    ["2026-10-27","17:30","Marta López","Mario Castro","tratamiento"],
+    ["2026-10-28","11:30","Javier Fernández","Paula Jiménez","revision"],
+    ["2026-10-29","18:00","Ana García","Diego Molina","tratamiento"]
+  ].map(([fecha, hora, doctor, paciente, tipo]) => ({
+    fecha, hora, doctor, paciente, tipo, estado: "concertada"
+  }));
+
+  function elemento(tag, texto, clase = "") {
+    const e = document.createElement(tag);
+    e.textContent = texto;
+    if (clase) e.className = clase;
+    return e;
+  }
+
+  async function cargarDatos() {
+    botonCargar.disabled = true;
+
+    try {
+      const existentes = await getDocs(coleccion);
+
+      if (!existentes.empty) {
+        mensaje.textContent =
+          "La colección ya contiene citas. No se ha añadido ninguna.";
+        return;
+      }
+
+      const lote = writeBatch(db);
+      for (const cita of datosPrueba) {
+        lote.set(doc(coleccion), cita);
+      }
+      await lote.commit();
+
+      mensaje.textContent = "Se han cargado las 10 citas correctamente.";
+    } catch (error) {
+      console.error(error);
+      mensaje.textContent =
+        "No se pudieron cargar las citas. Comprueba la configuración y las reglas de Firebase.";
+    } finally {
+      botonCargar.disabled = false;
+    }
+  }
+
+  async function cambiarEstado(id, estado, botones) {
+    botones.forEach(b => b.disabled = true);
+
+    try {
+      await updateDoc(doc(db, "citas", id), { estado });
+      mensaje.textContent = `Cita actualizada: ${estado}.`;
+    } catch (error) {
+      console.error(error);
+      mensaje.textContent =
+        "No se pudo actualizar el estado. Comprueba los permisos.";
+      botones.forEach(b => b.disabled = false);
+    }
+  }
+
+  function mostrarCitas(documentos) {
+    contenedor.replaceChildren();
+
+    if (documentos.length === 0) {
+      contenedor.appendChild(elemento("p", "Todavía no hay citas."));
+      return;
+    }
+
+    documentos.sort((a, b) =>
+      a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora)
+    );
+
+    for (const cita of documentos) {
+      const tarjeta = elemento("article", "", "cita");
+      tarjeta.appendChild(elemento("h3", `${cita.fecha} · ${cita.hora}`));
+
+      const datos = elemento("div", "", "datos");
+      datos.append(
+        elemento("div", `Doctor/a: ${cita.doctor}`),
+        elemento("div", `Paciente: ${cita.paciente}`),
+        elemento("div", `Tipo: ${cita.tipo}`),
+        elemento("span", cita.estado, `estado ${cita.estado}`)
+      );
+      tarjeta.appendChild(datos);
+
+      if (cita.estado === "concertada") {
+        const acciones = elemento("div", "", "acciones");
+        const hecha = elemento("button", "Realizada", "hecha");
+        const cancelar = elemento("button", "Cancelar", "anular");
+
+        hecha.addEventListener("click", () =>
+          cambiarEstado(cita.id, "realizada", [hecha, cancelar])
+        );
+        cancelar.addEventListener("click", () =>
+          cambiarEstado(cita.id, "cancelada", [hecha, cancelar])
+        );
+
+        acciones.append(hecha, cancelar);
+        tarjeta.appendChild(acciones);
+      }
+
+      contenedor.appendChild(tarjeta);
+    }
+  }
+
+  botonCargar.addEventListener("click", cargarDatos);
+
+  onSnapshot(query(coleccion, orderBy("fecha")), snapshot => {
+    const documentos = snapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    mostrarCitas(documentos);
+    mensaje.textContent = `${documentos.length} citas encontradas.`;
+  }, error => {
+    console.error(error);
+    mensaje.textContent =
+      "Error al leer las citas. Revisa las reglas de acceso de Firestore.";
+  });
+</script>
+</body>
+</html>

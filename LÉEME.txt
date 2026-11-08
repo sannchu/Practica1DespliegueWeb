@@ -1,0 +1,36 @@
+Crea tu base de datos en Cloud Firestore de Firebase:
+
+    1. Entra en la consola de Cloud Firestore.
+
+    2. Pulsa Crear un proyecto y ponle, por ejemplo, clinica-citas-prueba.
+
+    3. Sigue los pasos del asistente. Cuando se cree, entra en Compilación → Firestore Database (el nombre puede variar ligeramente).
+
+    4. Pulsa Crear base de datos, elige una ubicación y selecciona el modo de producción si te lo ofrece. Configuraremos los permisos a continuación.
+
+Registra la aplicación web. Dentro de tu proyecto:
+
+    1. Pulsa el icono </> para añadir una aplicación web.
+
+    2. Ponle el nombre Clinica Web.
+
+    3. Registra la aplicación.
+
+Firebase te mostrará una configuración parecida a esta:
+
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "clinica-citas-prueba.firebaseapp.com",
+  projectId: "clinica-citas-prueba",
+  storageBucket: "clinica-citas-prueba.firebasestorage.app",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
+};
+
+En el archivo "index.html", cambia los datos de la línea 112 por los de la configuración que te ha salido.
+
+Aloja la web en un servidor web de tu preferencia, como por ejemplo el que provee el mismo Firebase, llamado Firebase Hosting.
+
+Cuando la página esté servida y tenga permisos, ábrela y pulsa "Cargar 10 citas de prueba".
+
+Luego, prueba los botones de cada cita y comprueba en Cloud Firestore que cambia el campo "estado".

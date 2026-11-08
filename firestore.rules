@@ -1,0 +1,50 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /citas/{citaId} {
+
+      // Permisos temporales para la practica
+      function practicaActiva() {
+        return request.time < timestamp.date(2026, 12, 7);
+      }
+
+      // Consultar citas
+      allow read: if practicaActiva();
+
+      // Crear citas con los campos del ejercicio
+      allow create: if practicaActiva()
+        && request.resource.data.keys().hasAll([
+          'fecha', 'hora', 'doctor',
+          'paciente', 'tipo', 'estado'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'fecha', 'hora', 'doctor',
+          'paciente', 'tipo', 'estado'
+        ])
+        && request.resource.data.fecha is string
+        && request.resource.data.hora is string
+        && request.resource.data.doctor is string
+        && request.resource.data.paciente is string
+        && request.resource.data.tipo in [
+          'revision', 'tratamiento'
+        ]
+        && request.resource.data.estado == 'concertada';
+
+      // Solo se puede cambiar el estado de una cita
+      allow update: if practicaActiva()
+        && resource.data.estado == 'concertada'
+        && request.resource.data.estado in [
+          'realizada', 'cancelada'
+        ]
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['estado']);
+
+      // Impedir eliminaciones desde la web
+      allow delete: if false;
+    }
+  }
+}
+
